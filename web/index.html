@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terminal Workspace Manager</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        .header {
+            background: #161b22;
+            padding: 12px 20px;
+            border-bottom: 2px solid #30363d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+        
+        .header h1 {
+            font-size: 20px;
+            color: #58a6ff;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .header-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .sync-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #6e7681;
+            padding: 6px 12px;
+            background: #21262d;
+            border-radius: 6px;
+        }
+        
+        .sync-indicator i {
+            color: #3fb950;
+        }
+        
+        .sync-indicator.syncing i {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .btn {
+            background: #238636;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn:hover {
+            background: #2ea043;
+            transform: translateY(-1px);
+        }
+        
+        .btn.danger {
+            background: #da3633;
+        }
+        
+        .btn.danger:hover {
+            background: #f85149;
+        }
+        
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 50px);
+        }
+        
+        .workspace-view {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            background: #0d1117;
+        }
+        
+        .terminal-panel {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            border-right: 2px solid #30363d;
+            background: #161b22;
+        }
+        
+        .terminal-header {
+            background: #0d1117;
+            padding: 10px 16px;
+            border-bottom: 2px solid #30363d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .terminal-title {
+            font-size: 15px;
+            color: #c9d1d9;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #3fb950;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .terminal-content {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: #000;
+        }
+        
+        .terminal-content iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            transform-origin: 0 0;
+        }
+        
+        .notes-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #0d1117;
+            min-width: 350px;
+        }
+        
+        .notes-header {
+            background: #0d1117;
+            padding: 10px 16px;
+            border-bottom: 2px solid #30363d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .notes-toolbar {
+            display: flex;
+            gap: 6px;
+            padding: 8px 12px;
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            flex-wrap: wrap;
+        }
+        
+        .toolbar-btn {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .toolbar-btn:hover {
+            background: #30363d;
+            color: #fff;
+        }
+        
+        .toolbar-btn.active {
+            background: #58a6ff;
+            color: #fff;
+            border-color: #58a6ff;
+        }
+        
+        .notes-editor {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            outline: none;
+        }
+        
+        .notes-editor:empty:before {
+            content: "Начните писать заметки...";
+            color: #6e7681;
+        }
+        
+        .notes-editor ul, .notes-editor ol {
+            margin-left: 20px;
+            margin-top: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .notes-editor li {
+            margin: 4px 0;
+        }
+        
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 4px 0;
+            padding: 4px;
+            border-radius: 4px;
+        }
+        
+        .checklist-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .checklist-item.checked {
+            opacity: 0.6;
+            text-decoration: line-through;
+        }
+        
+        .workspace-gallery {
+            height: 140px;
+            background: #161b22;
+            border-top: 2px solid #30363d;
+            padding: 12px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            display: flex;
+            gap: 12px;
+        }
+        
+        .workspace-thumb {
+            min-width: 200px;
+            height: 100%;
+            background: #0d1117;
+            border: 2px solid #30363d;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .workspace-thumb:hover {
+            border-color: #58a6ff;
+            transform: translateY(-2px);
+        }
+        
+        .workspace-thumb.active {
+            border-color: #3fb950;
+            box-shadow: 0 0 12px rgba(63, 185, 80, 0.3);
+        }
+        
+        .workspace-thumb-preview {
+            flex: 1;
+            background: #000;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #6e7681;
+        }
+        
+        .workspace-thumb-name {
+            padding: 6px 8px;
+            background: #161b22;
+            border-top: 1px solid #30363d;
+            font-size: 12px;
+            color: #c9d1d9;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .workspace-thumb-name input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: #c9d1d9;
+            text-align: center;
+            font-size: 12px;
+            outline: none;
+        }
+        
+        .workspace-thumb-delete {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: #da3633;
+            border: none;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .workspace-thumb:hover .workspace-thumb-delete {
+            opacity: 1;
+        }
+        
+        .workspace-thumb-delete:hover {
+            background: #f85149;
+        }
+        
+        .new-workspace-thumb {
+            min-width: 200px;
+            height: 100%;
+            background: #21262d;
+            border: 2px dashed #30363d;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 8px;
+            color: #6e7681;
+        }
+        
+        .new-workspace-thumb:hover {
+            border-color: #58a6ff;
+            color: #58a6ff;
+            background: #0d1117;
+        }
+        
+        .new-workspace-thumb i {
+            font-size: 24px;
+        }
+        
+        .empty-state {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #6e7681;
+            font-size: 16px;
+        }
+        
+        /* Zoom controls */
+        .zoom-controls {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        
+        .zoom-btn {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .zoom-btn:hover {
+            background: #30363d;
+            border-color: #58a6ff;
+        }
+        
+        .zoom-level {
+            font-size: 12px;
+            color: #6e7681;
+            min-width: 45px;
+            text-align: center;
+        }
+        
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .workspace-view {
+                flex-direction: column;
+            }
+            
+            .terminal-panel {
+                border-right: none;
+                border-bottom: 2px solid #30363d;
+            }
+            
+            .notes-panel {
+                min-width: unset;
+            }
+            
+            .workspace-gallery {
+                height: 120px;
+            }
+            
+            .workspace-thumb {
+                min-width: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>
+            <i class="fas fa-desktop"></i>
+            <span>Terminal Workspace Manager</span>
+        </h1>
+        <div class="header-controls">
+            <div class="sync-indicator" id="syncIndicator">
+                <i class="fas fa-cloud"></i>
+                <span id="syncText">Синхронизировано</span>
+            </div>
+            <button class="btn" onclick="createNewWorkspace()">
+                <i class="fas fa-plus"></i>
+                Новый рабочий стол
+            </button>
+        </div>
+    </div>
+    
+    <div class="main-container">
+        <div class="workspace-view" id="workspaceView">
+            <div class="empty-state">
+                <div style="text-align: center;">
+                    <i class="fas fa-desktop" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+                    Создайте новый рабочий стол для начала работы
+                </div>
+            </div>
+        </div>
+        
+        <div class="workspace-gallery" id="workspaceGallery">
+            <div class="new-workspace-thumb" onclick="createNewWorkspace()">
+                <i class="fas fa-plus-circle"></i>
+                <span>Создать рабочий стол</span>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Workspace manager
+        let workspaces = [];
+        let currentWorkspaceId = null;
+        let nextWorkspaceId = 1;
+        let zoomLevels = {};
+        
+        // Load workspaces from cloud
+        async function loadWorkspaces() {
+            try {
+                const response = await fetch('/sync');
+                const data = await response.json();
+                
+                workspaces = data.workspaces || [];
+                nextWorkspaceId = data.nextId || 1;
+                zoomLevels = data.zoomLevels || {};
+                
+                if (workspaces.length > 0) {
+                    renderGallery();
+                    switchToWorkspace(workspaces[0].id);
+                }
+            } catch (error) {
+                console.error('Failed to load workspaces:', error);
+                // Fallback to localStorage
+                const saved = localStorage.getItem('terminal_workspaces');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    workspaces = data.workspaces || [];
+                    nextWorkspaceId = data.nextId || 1;
+                    zoomLevels = data.zoomLevels || {};
+                    
+                    if (workspaces.length > 0) {
+                        renderGallery();
+                        switchToWorkspace(workspaces[0].id);
+                    }
+                }
+            }
+        }
+        
+        // Save workspaces to cloud
+        async function saveWorkspacesCore() {
+            // Save current workspace notes if any
+            if (currentWorkspaceId) {
+                const editor = document.querySelector('.notes-editor');
+                if (editor) {
+                    const workspace = workspaces.find(w => w.id === currentWorkspaceId);
+                    if (workspace) {
+                        workspace.notes = editor.innerHTML;
+                    }
+                }
+            }
+            
+            const data = {
+                workspaces: workspaces,
+                nextId: nextWorkspaceId,
+                zoomLevels: zoomLevels
+            };
+            
+            // Save to cloud
+            try {
+                await fetch('/sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+            } catch (error) {
+                console.error('Failed to save to cloud:', error);
+            }
+            
+            // Also save to localStorage as backup
+            localStorage.setItem('terminal_workspaces', JSON.stringify(data));
+        }
+        
+        // Wrapper with sync status
+        async function saveWorkspaces() {
+            setSyncStatus('syncing');
+            await saveWorkspacesCore();
+            setSyncStatus('synced');
+        }
+        
+        // Create new workspace
+        function createNewWorkspace() {
+            const workspace = {
+                id: nextWorkspaceId++,
+                name: `Рабочий стол ${nextWorkspaceId - 1}`,
+                terminalSession: `terminal-${nextWorkspaceId - 1}`,
+                notes: '',
+                created: Date.now()
+            };
+            
+            workspaces.push(workspace);
+            zoomLevels[workspace.id] = 100;
+            saveWorkspaces();
+            renderGallery();
+            switchToWorkspace(workspace.id);
+        }
+        
+        // Delete workspace
+        function deleteWorkspace(id, event) {
+            if (event) event.stopPropagation();
+            
+            const workspace = workspaces.find(w => w.id === id);
+            const workspaceName = workspace ? workspace.name : `Рабочий стол ${id}`;
+            
+            if (!confirm(`Удалить рабочий стол "${workspaceName}"?`)) {
+                return;
+            }
+            
+            workspaces = workspaces.filter(w => w.id !== id);
+            delete zoomLevels[id];
+            
+            if (currentWorkspaceId === id) {
+                currentWorkspaceId = null;
+                if (workspaces.length > 0) {
+                    switchToWorkspace(workspaces[0].id);
+                } else {
+                    showEmptyState();
+                }
+            }
+            
+            saveWorkspaces();
+            renderGallery();
+        }
+        
+        // Delete current workspace
+        function deleteCurrentWorkspace() {
+            if (!currentWorkspaceId) return;
+            deleteWorkspace(currentWorkspaceId, null);
+        }
+        
+        // Switch to workspace
+        function switchToWorkspace(id) {
+            const workspace = workspaces.find(w => w.id === id);
+            if (!workspace) return;
+            
+            // Save current workspace notes
+            if (currentWorkspaceId) {
+                const editor = document.querySelector('.notes-editor');
+                if (editor) {
+                    const oldWorkspace = workspaces.find(w => w.id === currentWorkspaceId);
+                    if (oldWorkspace) {
+                        oldWorkspace.notes = editor.innerHTML;
+                    }
+                }
+            }
+            
+            currentWorkspaceId = id;
+            renderWorkspace(workspace);
+            renderGallery(); // Update active state
+            saveWorkspaces();
+        }
+        
+        // Render workspace view
+        function renderWorkspace(workspace) {
+            const zoom = zoomLevels[workspace.id] || 100;
+            const scale = zoom / 100;
+            
+            const view = document.getElementById('workspaceView');
+            view.innerHTML = `
+                <div class="terminal-panel">
+                    <div class="terminal-header">
+                        <div class="terminal-title">
+                            <span class="status-dot"></span>
+                            <span id="terminalTitle">Terminal - ${workspace.terminalSession}</span>
+                        </div>
+                        <div class="zoom-controls">
+                            <button class="zoom-btn" onclick="changeZoom(-10)" title="Уменьшить">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                            <span class="zoom-level" id="zoomLevel">${zoom}%</span>
+                            <button class="zoom-btn" onclick="changeZoom(10)" title="Увеличить">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                            <button class="zoom-btn" onclick="resetZoom()" title="Сброс">
+                                <i class="fas fa-undo"></i>
+                            </button>
+                            <button class="zoom-btn" onclick="deleteCurrentWorkspace()" title="Удалить рабочий стол" style="background: #da3633; border-color: #da3633;">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="terminal-content">
+                        <iframe src="/terminal${workspace.id}/" allow="clipboard-read; clipboard-write" style="transform: scale(${scale}); width: ${100/scale}%; height: ${100/scale}%;"></iframe>
+                    </div>
+                </div>
+                
+                <div class="notes-panel">
+                    <div class="notes-header">
+                        <span style="font-weight: 600; color: #c9d1d9;">📝 Заметки</span>
+                        <button class="btn" onclick="saveWorkspaces()" style="padding: 6px 12px; font-size: 13px;">
+                            <i class="fas fa-save"></i>
+                            Сохранить
+                        </button>
+                    </div>
+                    <div class="notes-toolbar">
+                        <button class="toolbar-btn" onclick="execCommand('bold')" title="Жирный">
+                            <i class="fas fa-bold"></i>
+                        </button>
+                        <button class="toolbar-btn" onclick="execCommand('italic')" title="Курсив">
+                            <i class="fas fa-italic"></i>
+                        </button>
+                        <button class="toolbar-btn" onclick="execCommand('underline')" title="Подчёркнутый">
+                            <i class="fas fa-underline"></i>
+                        </button>
+                        <button class="toolbar-btn" onclick="execCommand('strikeThrough')" title="Зачёркнутый">
+                            <i class="fas fa-strikethrough"></i>
+                        </button>
+                        <span style="border-left: 1px solid #30363d; margin: 0 4px;"></span>
+                        <button class="toolbar-btn" onclick="execCommand('insertUnorderedList')" title="Маркированный список">
+                            <i class="fas fa-list-ul"></i>
+                        </button>
+                        <button class="toolbar-btn" onclick="execCommand('insertOrderedList')" title="Нумерованный список">
+                            <i class="fas fa-list-ol"></i>
+                        </button>
+                        <button class="toolbar-btn" onclick="insertChecklist()" title="Список с галочками">
+                            <i class="fas fa-check-square"></i>
+                        </button>
+                        <span style="border-left: 1px solid #30363d; margin: 0 4px;"></span>
+                        <button class="toolbar-btn" onclick="execCommand('indent')" title="Увеличить отступ">
+                            <i class="fas fa-indent"></i>
+                        </button>
+                        <button class="toolbar-btn" onclick="execCommand('outdent')" title="Уменьшить отступ">
+                            <i class="fas fa-outdent"></i>
+                        </button>
+                        <span style="border-left: 1px solid #30363d; margin: 0 4px;"></span>
+                        <select class="toolbar-btn" onchange="changeFontSize(this.value)" style="padding: 4px 8px;">
+                            <option value="1">Маленький</option>
+                            <option value="3" selected>Обычный</option>
+                            <option value="5">Большой</option>
+                            <option value="7">Огромный</option>
+                        </select>
+                    </div>
+                    <div class="notes-editor" contenteditable="true" id="notesEditor">${workspace.notes}</div>
+                </div>
+            `;
+            
+            // Update terminal title periodically
+            updateTerminalTitle(workspace.id);
+            setInterval(() => {
+                if (currentWorkspaceId === workspace.id) {
+                    updateTerminalTitle(workspace.id);
+                }
+            }, 5000);
+            
+            // Auto-save on input
+            const editor = document.getElementById('notesEditor');
+            editor.addEventListener('input', () => {
+                workspace.notes = editor.innerHTML;
+                saveWorkspaces();
+            });
+            
+            // Handle checklist checkboxes
+            editor.addEventListener('click', (e) => {
+                if (e.target.type === 'checkbox') {
+                    const item = e.target.closest('.checklist-item');
+                    if (item) {
+                        item.classList.toggle('checked', e.target.checked);
+                        saveWorkspaces();
+                    }
+                }
+            });
+        }
+        
+        // Show empty state
+        function showEmptyState() {
+            const view = document.getElementById('workspaceView');
+            view.innerHTML = `
+                <div class="empty-state">
+                    <div style="text-align: center;">
+                        <i class="fas fa-desktop" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+                        Создайте новый рабочий стол для начала работы
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Render workspace gallery
+        function renderGallery() {
+            const gallery = document.getElementById('workspaceGallery');
+            const thumbsHTML = workspaces.map(workspace => `
+                <div class="workspace-thumb ${workspace.id === currentWorkspaceId ? 'active' : ''}" 
+                     onclick="switchToWorkspace(${workspace.id})">
+                    <button class="workspace-thumb-delete" onclick="deleteWorkspace(${workspace.id}, event)">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div class="workspace-thumb-preview">
+                        <i class="fas fa-terminal"></i>
+                    </div>
+                    <div class="workspace-thumb-name">
+                        <input type="text" value="${workspace.name}" 
+                               onclick="event.stopPropagation()"
+                               onchange="renameWorkspace(${workspace.id}, this.value)"
+                               onblur="this.classList.remove('editing')">
+                    </div>
+                </div>
+            `).join('');
+            
+            gallery.innerHTML = thumbsHTML + `
+                <div class="new-workspace-thumb" onclick="createNewWorkspace()">
+                    <i class="fas fa-plus-circle"></i>
+                    <span>Создать рабочий стол</span>
+                </div>
+            `;
+        }
+        
+        // Rename workspace
+        function renameWorkspace(id, newName) {
+            const workspace = workspaces.find(w => w.id === id);
+            if (workspace) {
+                workspace.name = newName;
+                saveWorkspaces();
+            }
+        }
+        
+        // Update terminal title from API
+        async function updateTerminalTitle(workspaceId) {
+            try {
+                const response = await fetch(`/api/title/${workspaceId}`);
+                const data = await response.json();
+                const titleElement = document.getElementById('terminalTitle');
+                if (titleElement && data.title && data.title !== 'inactive') {
+                    titleElement.textContent = `Terminal - ${data.title}`;
+                }
+            } catch (e) {
+                // Ignore errors
+            }
+        }
+        
+        // Zoom controls
+        function changeZoom(delta) {
+            if (!currentWorkspaceId) return;
+            
+            const currentZoom = zoomLevels[currentWorkspaceId] || 100;
+            const newZoom = Math.max(50, Math.min(200, currentZoom + delta));
+            zoomLevels[currentWorkspaceId] = newZoom;
+            
+            const workspace = workspaces.find(w => w.id === currentWorkspaceId);
+            if (workspace) {
+                renderWorkspace(workspace);
+                saveWorkspaces();
+            }
+        }
+        
+        function resetZoom() {
+            if (!currentWorkspaceId) return;
+            
+            zoomLevels[currentWorkspaceId] = 100;
+            const workspace = workspaces.find(w => w.id === currentWorkspaceId);
+            if (workspace) {
+                renderWorkspace(workspace);
+                saveWorkspaces();
+            }
+        }
+        
+        // Text editor commands
+        function execCommand(command, value = null) {
+            document.execCommand(command, false, value);
+            document.getElementById('notesEditor').focus();
+        }
+        
+        function changeFontSize(size) {
+            execCommand('fontSize', size);
+        }
+        
+        function insertChecklist() {
+            const editor = document.getElementById('notesEditor');
+            const checklistItem = document.createElement('div');
+            checklistItem.className = 'checklist-item';
+            checklistItem.innerHTML = `
+                <input type="checkbox">
+                <span contenteditable="true">Новый пункт</span>
+            `;
+            
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                range.deleteContents();
+                range.insertNode(checklistItem);
+                range.collapse(false);
+                
+                // Focus on the text
+                const span = checklistItem.querySelector('span');
+                span.focus();
+                
+                // Select text
+                const newRange = document.createRange();
+                newRange.selectNodeContents(span);
+                selection.removeAllRanges();
+                selection.addRange(newRange);
+            }
+            
+            saveWorkspaces();
+        }
+        
+        // Sync indicator
+        function setSyncStatus(status, text) {
+            const indicator = document.getElementById('syncIndicator');
+            const textElement = document.getElementById('syncText');
+            
+            if (!indicator || !textElement) return;
+            
+            if (status === 'syncing') {
+                indicator.classList.add('syncing');
+                textElement.textContent = text || 'Синхронизация...';
+            } else if (status === 'synced') {
+                indicator.classList.remove('syncing');
+                textElement.textContent = 'Синхронизировано';
+            } else if (status === 'error') {
+                indicator.classList.remove('syncing');
+                textElement.textContent = 'Ошибка синхронизации';
+            }
+        }
+        
+        // Auto-sync from server
+        let lastServerUpdate = 0;
+        
+        async function syncFromServer() {
+            try {
+                const response = await fetch('/sync');
+                const data = await response.json();
+                
+                // Check if server has newer data
+                if (data.lastUpdate && data.lastUpdate > lastServerUpdate) {
+                    lastServerUpdate = data.lastUpdate;
+                    
+                    // Only update if we're not currently editing
+                    const editor = document.querySelector('.notes-editor');
+                    const isEditing = editor && document.activeElement === editor;
+                    
+                    if (!isEditing) {
+                        const oldWorkspaceId = currentWorkspaceId;
+                        
+                        workspaces = data.workspaces || [];
+                        nextWorkspaceId = data.nextId || 1;
+                        zoomLevels = data.zoomLevels || {};
+                        
+                        renderGallery();
+                        
+                        // Try to stay on same workspace
+                        if (oldWorkspaceId && workspaces.find(w => w.id === oldWorkspaceId)) {
+                            switchToWorkspace(oldWorkspaceId);
+                        } else if (workspaces.length > 0) {
+                            switchToWorkspace(workspaces[0].id);
+                        } else {
+                            showEmptyState();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Sync error:', error);
+            }
+        }
+        
+
+        
+        // Initialize
+        window.addEventListener('load', async () => {
+            setSyncStatus('syncing', 'Загрузка...');
+            await loadWorkspaces();
+            setSyncStatus('synced');
+            
+            // Auto-sync from server every 3 seconds
+            setInterval(syncFromServer, 3000);
+            
+            // Auto-save every 10 seconds
+            setInterval(saveWorkspaces, 10000);
+        });
+        
+        // Save on unload
+        window.addEventListener('beforeunload', saveWorkspaces);
+    </script>
+</body>
+</html>

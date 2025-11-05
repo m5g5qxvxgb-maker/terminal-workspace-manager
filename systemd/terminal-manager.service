@@ -1,0 +1,13 @@
+[Unit]
+Description=Terminal Manager Services
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/local/bin/start-terminal-services.sh
+ExecStop=/usr/local/bin/stop-terminal-services.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
