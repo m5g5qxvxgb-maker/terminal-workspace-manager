@@ -1,0 +1,16 @@
+[Unit]
+Description=Terminal Notification Monitor
+After=workspace-sync.service terminal-manager.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/www/terminal
+ExecStart=/usr/bin/node /var/www/terminal/monitor-terminals.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
