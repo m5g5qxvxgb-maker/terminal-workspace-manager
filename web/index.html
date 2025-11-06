@@ -660,14 +660,22 @@
         }
         
         // Delete workspace
-        function deleteWorkspace(id, event) {
+        async function deleteWorkspace(id, event) {
             if (event) event.stopPropagation();
             
             const workspace = workspaces.find(w => w.id === id);
             const workspaceName = workspace ? workspace.name : `Рабочий стол ${id}`;
             
-            if (!confirm(`Удалить рабочий стол "${workspaceName}"?`)) {
+            if (!confirm(`Удалить рабочий стол "${workspaceName}"?\n\nТерминальная сессия будет закрыта.`)) {
                 return;
+            }
+            
+            // Cleanup terminal session
+            try {
+                await fetch(`/api/cleanup-terminal.php?id=${id}`);
+                console.log(`Terminal session ${id} cleaned up`);
+            } catch (error) {
+                console.log('Cleanup error (terminal might not exist):', error.message);
             }
             
             workspaces = workspaces.filter(w => w.id !== id);
@@ -717,10 +725,25 @@
             saveWorkspaces();
         }
         
+        // Ensure terminal exists for workspace
+        async function ensureTerminal(workspaceId) {
+            try {
+                // Call API to create terminal if doesn't exist
+                const response = await fetch(`/api/create-terminal.php?id=${workspaceId}`);
+                const data = await response.json();
+                console.log('Terminal creation result:', data);
+            } catch (error) {
+                console.log('Terminal creation error (might already exist):', error.message);
+            }
+        }
+        
         // Render workspace view
         function renderWorkspace(workspace) {
             const zoom = zoomLevels[workspace.id] || 100;
             const scale = zoom / 100;
+            
+            // Ensure terminal exists
+            ensureTerminal(workspace.id);
             
             const view = document.getElementById('workspaceView');
             view.innerHTML = `
