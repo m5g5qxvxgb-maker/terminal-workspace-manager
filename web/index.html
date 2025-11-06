@@ -893,8 +893,13 @@
         
         // Auto-sync from server
         let lastServerUpdate = 0;
+        let isSyncing = false;
         
         async function syncFromServer() {
+            // Prevent concurrent syncs
+            if (isSyncing) return;
+            isSyncing = true;
+            
             try {
                 const response = await fetch('/sync');
                 const data = await response.json();
@@ -903,31 +908,53 @@
                 if (data.lastUpdate && data.lastUpdate > lastServerUpdate) {
                     lastServerUpdate = data.lastUpdate;
                     
-                    // Only update if we're not currently editing
+                    // Check if we're editing or using terminal
                     const editor = document.querySelector('.notes-editor');
                     const isEditing = editor && document.activeElement === editor;
+                    const terminalIframe = document.querySelector('.terminal-content iframe');
+                    const isUsingTerminal = terminalIframe && document.activeElement === terminalIframe;
                     
-                    if (!isEditing) {
+                    // Don't refresh if actively using terminal or editor
+                    if (!isEditing && !isUsingTerminal) {
                         const oldWorkspaceId = currentWorkspaceId;
                         
+                        // Update data silently
                         workspaces = data.workspaces || [];
                         nextWorkspaceId = data.nextId || 1;
                         zoomLevels = data.zoomLevels || {};
                         
+                        // Only update gallery, don't reload workspace
                         renderGallery();
                         
-                        // Try to stay on same workspace
-                        if (oldWorkspaceId && workspaces.find(w => w.id === oldWorkspaceId)) {
-                            switchToWorkspace(oldWorkspaceId);
-                        } else if (workspaces.length > 0) {
-                            switchToWorkspace(workspaces[0].id);
-                        } else {
-                            showEmptyState();
+                        // Update notes if workspace still exists and notes changed
+                        if (oldWorkspaceId) {
+                            const currentWorkspace = workspaces.find(w => w.id === oldWorkspaceId);
+                            if (currentWorkspace && editor && !isEditing) {
+                                // Only update if notes actually changed
+                                if (editor.innerHTML !== currentWorkspace.notes) {
+                                    editor.innerHTML = currentWorkspace.notes;
+                                }
+                            }
+                            // If workspace was deleted, switch to another
+                            if (!currentWorkspace) {
+                                if (workspaces.length > 0) {
+                                    switchToWorkspace(workspaces[0].id);
+                                } else {
+                                    showEmptyState();
+                                }
+                            }
                         }
+                    } else {
+                        // Just update the data in background without UI refresh
+                        workspaces = data.workspaces || [];
+                        nextWorkspaceId = data.nextId || 1;
+                        zoomLevels = data.zoomLevels || {};
                     }
                 }
             } catch (error) {
                 console.error('Sync error:', error);
+            } finally {
+                isSyncing = false;
             }
         }
         
