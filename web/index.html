@@ -867,6 +867,26 @@
         // Render workspace gallery
         function renderGallery() {
             const gallery = document.getElementById('workspaceGallery');
+            
+            // Save current focused input and its selection
+            const focusedInput = document.querySelector('.workspace-thumb-name input:focus');
+            let focusedWorkspaceId = null;
+            let selectionStart = null;
+            let selectionEnd = null;
+            
+            if (focusedInput) {
+                const thumb = focusedInput.closest('.workspace-thumb');
+                if (thumb) {
+                    const workspace = workspaces.find(w => w.name === focusedInput.value || 
+                                                          focusedInput.value.includes(w.id));
+                    if (workspace) {
+                        focusedWorkspaceId = workspace.id;
+                        selectionStart = focusedInput.selectionStart;
+                        selectionEnd = focusedInput.selectionEnd;
+                    }
+                }
+            }
+            
             const thumbsHTML = workspaces.map(workspace => {
                 const notification = workspace.notification || null;
                 const notificationHTML = notification ? `
@@ -877,7 +897,8 @@
                 
                 return `
                 <div class="workspace-thumb ${workspace.id === currentWorkspaceId ? 'active' : ''}" 
-                     onclick="switchToWorkspace(${workspace.id})">
+                     onclick="switchToWorkspace(${workspace.id})"
+                     data-workspace-id="${workspace.id}">
                     <button class="workspace-thumb-delete" onclick="deleteWorkspace(${workspace.id}, event)">
                         <i class="fas fa-times"></i>
                     </button>
@@ -889,7 +910,8 @@
                         <input type="text" value="${workspace.name}" 
                                onclick="event.stopPropagation()"
                                onchange="renameWorkspace(${workspace.id}, this.value)"
-                               onblur="this.classList.remove('editing')">
+                               onblur="this.classList.remove('editing')"
+                               data-workspace-id="${workspace.id}">
                     </div>
                 </div>
                 `;
@@ -1028,14 +1050,18 @@
                 if (data.lastUpdate && data.lastUpdate > lastServerUpdate) {
                     lastServerUpdate = data.lastUpdate;
                     
-                    // Check if we're editing or using terminal
+                    // Check if we're editing or using terminal or renaming workspace
                     const editor = document.querySelector('.notes-editor');
                     const isEditing = editor && document.activeElement === editor;
                     const terminalIframe = document.querySelector('.terminal-content iframe');
                     const isUsingTerminal = terminalIframe && document.activeElement === terminalIframe;
                     
-                    // Don't refresh if actively using terminal or editor
-                    if (!isEditing && !isUsingTerminal) {
+                    // Check if renaming workspace (any input in workspace-thumb-name is focused)
+                    const renamingInput = document.querySelector('.workspace-thumb-name input:focus');
+                    const isRenamingWorkspace = renamingInput !== null;
+                    
+                    // Don't refresh if actively using terminal, editor, or renaming
+                    if (!isEditing && !isUsingTerminal && !isRenamingWorkspace) {
                         const oldWorkspaceId = currentWorkspaceId;
                         
                         // Update data silently
