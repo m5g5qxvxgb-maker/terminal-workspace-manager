@@ -300,6 +300,46 @@
             color: #6e7681;
         }
         
+        .workspace-notification {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: #f85149;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 0 12px rgba(248, 81, 73, 0.6);
+            animation: notification-pulse 2s infinite;
+            z-index: 10;
+        }
+        
+        .workspace-notification.success {
+            background: #3fb950;
+            box-shadow: 0 0 12px rgba(63, 185, 80, 0.6);
+        }
+        
+        .workspace-notification.warning {
+            background: #d29922;
+            box-shadow: 0 0 12px rgba(210, 153, 34, 0.6);
+        }
+        
+        @keyframes notification-pulse {
+            0%, 100% { 
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% { 
+                transform: scale(1.1);
+                opacity: 0.8;
+            }
+        }
+        
         .workspace-thumb-name {
             padding: 6px 8px;
             background: #161b22;
@@ -565,7 +605,8 @@
                 name: `Рабочий стол ${nextWorkspaceId - 1}`,
                 terminalSession: `terminal-${nextWorkspaceId - 1}`,
                 notes: '',
-                created: Date.now()
+                created: Date.now(),
+                notification: null
             };
             
             workspaces.push(workspace);
@@ -573,6 +614,49 @@
             saveWorkspaces();
             renderGallery();
             switchToWorkspace(workspace.id);
+        }
+        
+        // Set notification for workspace
+        function setWorkspaceNotification(workspaceId, type, icon) {
+            const workspace = workspaces.find(w => w.id === workspaceId);
+            if (workspace) {
+                workspace.notification = { type, icon };
+                renderGallery();
+                saveWorkspaces();
+            }
+        }
+        
+        // Clear notification for workspace
+        function clearWorkspaceNotification(workspaceId) {
+            const workspace = workspaces.find(w => w.id === workspaceId);
+            if (workspace) {
+                workspace.notification = null;
+                renderGallery();
+                saveWorkspaces();
+            }
+        }
+        
+        // Detect terminal activity and set notifications
+        function monitorTerminalActivity() {
+            // This will be called periodically to check terminal output
+            // For now, users can manually trigger notifications via commands
+        }
+        
+        // Manual notification triggers (for testing)
+        window.notifyWorkspace = function(workspaceId, type = 'warning', icon = '!') {
+            setWorkspaceNotification(workspaceId, type, icon);
+        }
+        
+        window.notifySuccess = function(workspaceId) {
+            setWorkspaceNotification(workspaceId, 'success', '✓');
+        }
+        
+        window.notifyError = function(workspaceId) {
+            setWorkspaceNotification(workspaceId, '', '!');
+        }
+        
+        window.clearNotify = function(workspaceId) {
+            clearWorkspaceNotification(workspaceId);
         }
         
         // Delete workspace
@@ -623,6 +707,9 @@
                     }
                 }
             }
+            
+            // Clear notification when switching to workspace
+            clearWorkspaceNotification(id);
             
             currentWorkspaceId = id;
             renderWorkspace(workspace);
@@ -757,13 +844,22 @@
         // Render workspace gallery
         function renderGallery() {
             const gallery = document.getElementById('workspaceGallery');
-            const thumbsHTML = workspaces.map(workspace => `
+            const thumbsHTML = workspaces.map(workspace => {
+                const notification = workspace.notification || null;
+                const notificationHTML = notification ? `
+                    <div class="workspace-notification ${notification.type || ''}">
+                        ${notification.icon || '!'}
+                    </div>
+                ` : '';
+                
+                return `
                 <div class="workspace-thumb ${workspace.id === currentWorkspaceId ? 'active' : ''}" 
                      onclick="switchToWorkspace(${workspace.id})">
                     <button class="workspace-thumb-delete" onclick="deleteWorkspace(${workspace.id}, event)">
                         <i class="fas fa-times"></i>
                     </button>
                     <div class="workspace-thumb-preview">
+                        ${notificationHTML}
                         <i class="fas fa-terminal"></i>
                     </div>
                     <div class="workspace-thumb-name">
@@ -773,7 +869,8 @@
                                onblur="this.classList.remove('editing')">
                     </div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
             
             gallery.innerHTML = thumbsHTML + `
                 <div class="new-workspace-thumb" onclick="createNewWorkspace()">
